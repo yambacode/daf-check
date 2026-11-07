@@ -19,14 +19,14 @@ in [SPEC.md](SPEC.md).
 Python 3.10 or newer:
 
 ```sh
-pip install "daf-check[c2pa] @ git+https://github.com/cyamba/daf-check"
+pip install "daf-check[c2pa] @ git+https://github.com/yambacode/daf-check"
 ```
 
 or, without the C2PA library (the pixel signature is still checked; a C2PA manifest is only
 detected, its signature is not verified):
 
 ```sh
-pip install "git+https://github.com/cyamba/daf-check"
+pip install "git+https://github.com/yambacode/daf-check"
 ```
 
 Video needs the [ffmpeg](https://ffmpeg.org) command-line tools (`ffmpeg` and `ffprobe`) on your

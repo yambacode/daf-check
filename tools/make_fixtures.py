@@ -180,7 +180,7 @@ def main() -> int:
             provider_url="https://dreamartfields.com",
             local_identity={"common_name": "daf-check test fixture",
                             "organization": "YambaCode AB (test fixture)"},  # fmt: skip
-            checker={"name": "daf-check", "url": "https://github.com/cyamba/daf-check"},
+            checker={"name": "daf-check", "url": "https://github.com/yambacode/daf-check"},
         )
         data = prov.Provenance(pcfg, Path(tmp)).sign_bytes(
             pic, "image/png", title="c2pa_signed.png", watermark_id=inv.id_hash(AID_C2PA),
