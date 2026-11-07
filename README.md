@@ -9,10 +9,10 @@ Dream Art Fields marks everything it generates in two machine-readable layers:
    (IPTC digital source type `trainedAlgorithmicMedia`), by which system and when;
 2. an invisible **pixel signature** in pictures and video frames, with a published detection key.
 
-`daf-check` reads both and tells you, in plain words, what they show. It is the free detection
-tool the EU AI Act (Art. 50(2)) and the EU Code of Practice on marking AI-generated content ask
-providers to offer, and the reference implementation of the public specification in
-[SPEC.md](SPEC.md).
+`daf-check` reads both and tells you, in plain words, what they show. It is the free detector that
+the EU Code of Practice on marking AI-generated content (Sub-measures 2.1.1-2.1.2, under EU AI Act
+Art. 50(2)) asks providers to offer, and the reference implementation of the public specification
+in [SPEC.md](SPEC.md).
 
 ## Install
 
