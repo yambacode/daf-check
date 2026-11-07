@@ -22,6 +22,8 @@ DIGESTS = {
 
 PICTURES = [n for n in EXPECTED if not n.endswith(".mp4")]
 VIDEOS = [n for n in EXPECTED if n.endswith(".mp4")]
+# v2 video as exported, the same after a 20 % crop and CRF 28, and a clip exported before v2.
+VIDEO_FIXTURES = ["video_v2_signed.mp4", "video_v2_crop20_crf28.mp4", "video_v1_signed.mp4"]
 
 
 def _needs(name: str) -> None:
@@ -32,7 +34,7 @@ def _needs(name: str) -> None:
 def test_every_kind_of_fixture_is_there():
     names = set(EXPECTED)
     assert {"v2_signed.png", "v2_crop20_q70.jpg", "v1_signed.png", "unsigned.png",
-            "c2pa_signed.png"} <= names  # fmt: skip
+            "c2pa_signed.png", *VIDEO_FIXTURES} <= names  # fmt: skip
     for name, exp in EXPECTED.items():
         assert (FIXTURES / name).stat().st_size == exp["bytes"] <= 300_000
 
@@ -100,6 +102,69 @@ def test_c2pa_fixture_ties_manifest_and_pixels(results):
         assert "Both marks" in r.summary()
     else:
         assert "not checked" in r.summary()
+
+
+@pytest.mark.parametrize("name", VIDEO_FIXTURES)
+def test_video_matches_daf_exactly(name):
+    """Same version, AI flag, asset hash and confidence (2 decimals) as DAF's `detect_video`."""
+    _needs(name)
+    from daf_check.video import detect_video
+
+    exp = EXPECTED[name]["watermark"]
+    assert exp is not None, f"DAF found no mark in {name}"
+    d = detect_video(FIXTURES / name)
+    assert d is not None, f"DAF found {exp}, daf-check found nothing"
+    assert {k: v for k, v in d.as_dict().items() if k in exp} == exp
+    assert d.version == (1 if "v1" in name else 2)
+
+
+def test_v2_video_reads_at_the_exports_grid_and_after_a_crop():
+    """The uncropped export reads at its own grid (video_cells); the crop needs the search."""
+    _needs(VIDEO_FIXTURES[0])
+    import numpy as np
+    from PIL import Image
+
+    from daf_check.video import clip_frames, probe
+
+    det = default_detector()
+    for name, exact in ((VIDEO_FIXTURES[0], True), (VIDEO_FIXTURES[1], False)):
+        info = probe(FIXTURES / name)
+        size = (info.width, info.height)
+        frames = clip_frames(FIXTURES / name, size, det.p.video_frames, info.duration)
+        mean = frames.reshape(frames.shape[0], -1).mean(0, dtype=np.float64)
+        im = Image.fromarray(mean.reshape(frames.shape[1:]).astype(np.float32))
+        assert (det.v2.detect_exact(im, det.p.video_cells) is not None) == exact, name
+
+
+def test_v1_video_frames_api_still_works():
+    """`Detector.detect_frames` (version 1 video on the 256 x 256 grid) is kept."""
+    _needs("video_v1_signed.mp4")
+    from daf_check.video import grid_frames
+
+    det = default_detector()
+    frames = grid_frames(FIXTURES / "video_v1_signed.mp4", det.p.legacy.grid, det.p.video_frames)
+    d = det.detect_frames(frames)
+    exp = EXPECTED["video_v1_signed.mp4"]
+    assert d is not None and d.version == 1 and d.id_hash == exp["id_hash"]
+
+
+def test_unmarked_clip_reads_as_no_mark(tmp_path):
+    """A clip DAF never touched (ffmpeg's `testsrc`, re-encoded) carries no mark."""
+    if not ffmpeg_available():
+        pytest.skip("ffmpeg is not installed")
+    import subprocess
+
+    from daf_check import check
+    from daf_check.video import _tool, detect_video
+
+    clip = tmp_path / "testsrc.mp4"
+    subprocess.run([_tool("ffmpeg") or "ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                    "-f", "lavfi", "-i", "testsrc=size=640x360:rate=12:duration=2",
+                    "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", str(clip)],
+                   check=True, timeout=120)  # fmt: skip
+    assert detect_video(clip) is None
+    r = check(clip)
+    assert r.watermark is None and r.watermark_checked and not r.ai_generated
 
 
 def test_video_without_ffmpeg_says_so(monkeypatch):
