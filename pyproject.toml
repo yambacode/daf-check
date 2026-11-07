@@ -24,8 +24,8 @@ c2pa = ["c2pa-python>=0.38"]
 test = ["pytest", "ruff"]
 
 [project.urls]
-Homepage = "https://github.com/cyamba/daf-check"
-Specification = "https://github.com/cyamba/daf-check/blob/main/SPEC.md"
+Homepage = "https://github.com/yambacode/daf-check"
+Specification = "https://github.com/yambacode/daf-check/blob/main/SPEC.md"
 
 [project.scripts]
 daf-check = "daf_check.cli:main"
