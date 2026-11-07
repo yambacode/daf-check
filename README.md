@@ -116,14 +116,19 @@ afterwards. The C2PA library is asked not to fetch remote manifests or certifica
 
 ## Limits
 
-The pixel signature survives re-encoding (JPEG, WEBP, PNG), resizing and crops. It is not found,
-or not reliably, after:
+The pixel signature survives re-encoding (JPEG, WEBP, PNG), resizing and crops. Since 0.2.0 the
+same holds for video exported since the v2 video signature: re-encoding (MP4, MOV, WEBM),
+rescaling and crops, read from frames averaged across the clip. It is not found, or not reliably,
+after:
 
 * crops of more than about 30 % per side, or pictures smaller than about 400 px after cropping;
-* rotation, mirroring, perspective changes or heavy filtering;
+* video at 480p or smaller that was cropped and then heavily compressed (the weak spot: the
+  signature there is only 1 or 2 luminance levels in 5 px cells);
+* rotation, mirroring, perspective changes or heavy filtering (pictures and video);
 * regeneration through an AI model (img2img, upscalers that redraw detail);
 * screenshots of thumbnails or other tiny copies;
-* heavy video compression (video uses a simpler, crop-sensitive grid).
+* heavy compression of video exported before v2 video (it carries the older, crop-sensitive grid,
+  which is still read).
 
 The C2PA manifest is lost whenever metadata is stripped: screenshots, most social networks and
 messaging apps, many editors and converters.
