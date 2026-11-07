@@ -30,7 +30,7 @@ The key words MUST and SHOULD are used as in RFC 2119.
 | Byte | Content |
 |------|---------|
 | 0 | magic `0xDA` |
-| 1 | `version << 4 \| flags`; version 2 (tile) or 1 (grid and video); flag bit 0 = AI-generated |
+| 1 | `version << 4 \| flags`; version 2 (tile: pictures and video) or 1 (grid: older pictures and video); flag bit 0 = AI-generated |
 | 2-5 | asset hash: BLAKE2b with a 4-byte digest of the library asset id (UTF-8), big-endian |
 | 6-7 | CRC-16/CCITT-FALSE of bytes 0-5 (poly `0x1021`, init `0xFFFF`, no reflection, no final XOR; check value of `"123456789"` is `0x29B1`), big-endian |
 
@@ -57,16 +57,19 @@ The values of the `invisible:` section of DAF's `config/branding.yaml`
 | `min_confidence` | 1.5 | detection: mean per-bit \|z\| a read needs (v2) |
 | `repair_bits` | 3 | detection: weak bits a v2 read may flip (section 7) |
 | `detect_side` | (768, 1024) | detection: short side of the working copy (section 6.3) |
-| `legacy.key` | `dream-art-fields/signature/v1` | v1 and video tables |
-| `legacy.grid` | 256 | v1 and video grid |
-| `legacy.min_confidence` | 1.5 | detection: v1 and video |
-| `video_strength` | 2.5 | embedding: video luminance levels |
-| `video_mask` | (0.3, 1.5) | embedding: video texture-masking range |
+| `legacy.key` | `dream-art-fields/signature/v1` | v1 tables (pictures, and video before v2) |
+| `legacy.grid` | 256 | v1 grid (pictures, and video before v2) |
+| `legacy.min_confidence` | 1.5 | detection: v1 |
+| `video_cells` | 128 | video: cells across the short side (before rounding, section 8) |
+| `video_strength` | 2.4 | embedding: video luminance levels |
+| `video_mask` | (0.6, 1.0) | embedding: video texture-masking range |
 | `video_frames` | 24 | detection: frames a video check averages |
 
 Fixed constants: pictures with a short side under 64 px are not searched; `FLIP_POOL` = 12,
 `CANDIDATES` = 3, `SCREEN_BINS` = 2, `SCREEN_MIN_Z` = 4.5, `MAX_BINS_PER_CELL` = 6,
-`MAX_ASPECT` = 3, `SEARCH_TRIES` = 2, codec grids (16, 8, 4).
+`MAX_ASPECT` = 3, `SEARCH_TRIES` = 2, codec grids (16, 8, 4). Video (section 8):
+`NATIVE_UP_TO` = 1.5, `VIDEO_CELLS` = 3, 5, ..., 19, `VIDEO_SHORT_SIDES` = 240, 360, 480, 540,
+576, 720, 768, 1080, 1440, 2160.
 
 ## 3. Key to tables
 
@@ -86,7 +89,7 @@ sign = rng.choice([-1.0, 1.0], 961)               # float32, then reshaped 31 x 
 pilot[t] = sign[t] if role[t] == PILOT else 0
 ```
 
-**Version 1 grid and video** (key `dream-art-fields/signature/v1`, G = 256):
+**Version 1 grid, also video exported before v2** (key `dream-art-fields/signature/v1`, G = 256):
 
 ```
 bit_of = rng.permutation(65536) mod 64            # reshaped 256 x 256, row by row
@@ -214,7 +217,7 @@ with no flips.
 
 1. `confidence = mean(|z|)` over the 64 bits. If below `min_confidence` (1.5), there is no payload.
 2. `bits = corr > 0`.
-3. With `F` allowed flips (3 for v2, 0 for v1 and video), take the 12 bits with the smallest `|z|`
+3. With `F` allowed flips (3 for v2, 0 for v1), take the 12 bits with the smallest `|z|`
    and try flipping 0, then 1, ... up to `F` of them (combinations in index order of that list).
    Accept the first candidate whose magic, version and CRC all hold.
 4. Report version, AI flag (byte 1 bit 0), asset hash and confidence (rounded to 2 decimals).
@@ -230,15 +233,57 @@ pictures are not ideal noise, so treat these as estimates, not guarantees.
 
 ## 8. Video
 
-Video exports (MP4, MOV, WEBM) carry the **version 1 field with the legacy key** in every frame,
-added to luminance at `video_strength` 2.5 levels times a mask in (0.3, 1.5) taken from the calmest
-moment of each area across the clip; chroma is unchanged. GIF and animated WEBP do not carry it.
+**Layout.** Video exports (MP4, MOV, WEBM) carry the **version 2 tile** (section 4: same key,
+tables, payload and tile of 31 x 31 cells) in every frame, the same in every frame, anchored at the
+frame's top-left corner. Only the cell size differs: for a frame of `W x H` with short side `S`,
+`c_v = max(3, 2 * ceil((S / video_cells - 1) / 2) + 1)` with `video_cells` = 128 (5 px at 480p,
+7 px at 720p, 9 px at 1080p), so the tile period is `P = 31 * c_v` pixels. Cells are bigger than in
+pictures because video codecs and downscales wipe out 3 px cells.
 
-Detection: read `video_frames` = 24 frames spread over the clip, each box-resampled to 256 x 256
-gray (reference: `ffmpeg -i FILE -vf fps=24/DURATION,scale=256:256:flags=area,format=gray
--frames:v 24 -f rawvideo OUT`, with `DURATION` from ffprobe and `fps=1` when it is unknown),
-average them (the signature stands still while the picture moves), and run the version 1 read
-(6.2 from `whiten` on) on the mean.
+**Embedding (informative).** Each cell's value `v` = +-1 (section 5) times `video_strength` (2.4)
+times a mask in `video_mask` (0.6, 1.0), `mask = clamp(0.6 + busy / 6, 0.6, 1.0)`, where `busy` is
+the calmest moment of the cell's texture over frames from across the clip; rounded to whole
+luminance levels (so 1 or 2), added to luminance (an ffmpeg `grainmerge` blend); chroma is
+unchanged. GIF and animated WEBP do not carry it. Clips exported before this change carry the
+version 1 field (section 3, legacy key) in every frame instead, and are still read (step 3 below).
+
+**Detection.**
+
+1. **Frames.** Probe the first video stream's `W x H` and duration `D` (ffprobe; stream duration,
+   else the container's, else 0). Working size: `W x H` itself if `S <= NATIVE_UP_TO * 1024`
+   (1536), else scaled to a short side of 1024 (`(round(W k), round(H k))`, `k = 1024 / S`). Read
+   up to `video_frames` = 24 frames spread over the clip as 8-bit gray at the working size
+   (reference: `ffmpeg -i FILE -vf fps=24/D,scale=WORK_W:WORK_H:flags=area,format=gray
+   -frames:v 24 -f rawvideo OUT`, `fps=1` when `D` is unknown). No frames: no payload.
+2. **Mean.** Average the frames per pixel in float64 and keep the mean as float32 (`M`, width
+   `w'`). The still tile adds up while the moving picture averages out. `M` is luminance already:
+   it is never rounded back to 8 bits in the steps below.
+3. **Version 2 at the export's grid.** If the working size is `W x H`, read the exact grid (6.1)
+   on `M` with `c_v` in place of `c`. Otherwise read at the known period, any offset: on the
+   working copy of `M` (6.3 step 1, scale `s`), fold (6.3 step 4) at
+   `(P * h' / H * s, P * w' / W * s)` with `q = clamp(int(min of both / 31 + 0.5), 2, 6)` and decode
+   that fold (no screen, no refine).
+4. **Version 1.** If that found nothing and `M`'s short side is at least 64, the version 1 read
+   (6.2) on `M`.
+5. **Version 2 search, with period hints.** The exact grid with the picture cell `c` (6.1), then
+   the search (6.3) on `M`, where step 3 also gets, as square hypotheses `(p s, p s)` for every hint
+   `p` with `62 <= p s <= max(working h, w) / 1.5`, these **period hints** (pixels of `M`, `k = w' / W`;
+   distinct within 1 %, in this order): `31 * c * k` for every odd `c` in `VIDEO_CELLS` (3 to 19:
+   a crop, which keeps the export's own cell), then `31 * c_v(S0) * S / S0 * k` for every `S0` in
+   `VIDEO_SHORT_SIDES` (a rescale from a common short side, `c_v(S0)` the cell of an `S0 x S0`
+   frame). In a mean frame full of still picture the autocorrelation can miss the period; the
+   pilot does not. If no fold decodes, read every hint at full size as in step 3 (period
+   `(p, p)`), in order; the first success wins.
+
+A frame grab (one picture of a v2 video) can be checked as a picture: DAF's own picture check also
+tries 6.1 with `c_v` right after 6.1; this package leaves picture detection as in section 6, so a
+frame grab is found by the search (6.3) instead.
+
+**False positives.** A video check makes at most one v2 read in step 3, one v1 read in step 4, and
+in step 5 the exact grid, 2 search folds and one read per hint (at most 9 + 10), each v2 read at
+most 299 tries:
+about `(23 * 299 + 1) * 2^-28 ≈ 2.6e-5` per clip from the check bits alone, before the
+confidence gate.
 
 ## 9. C2PA manifest
 

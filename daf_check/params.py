@@ -15,7 +15,8 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class LegacyParams:
-    """Version 1 (one grid stretched over the whole picture); also the video signature."""
+    """Version 1 (one grid stretched over the whole picture); also the video signature of clips
+    exported before version 2 video (read only)."""
 
     key: str = "dream-art-fields/signature/v1"
     grid: int = 256
@@ -36,8 +37,9 @@ class Params:
     repair_bits: int = 3  # a v2 read may flip up to this many of its weakest bits
     detect_side: tuple[int, int] = (768, 1024)  # short side of the working copy
     legacy: LegacyParams = field(default_factory=LegacyParams)
-    video_strength: float = 2.5  # embedding (video): luminance levels
-    video_mask: tuple[float, float] = (0.3, 1.5)  # embedding (video): texture-masking range
+    video_cells: int = 128  # video: cell = short side / video_cells, odd, >= 3
+    video_strength: float = 2.4  # embedding (video): luminance levels
+    video_mask: tuple[float, float] = (0.6, 1.0)  # embedding (video): texture-masking range
     video_frames: int = 24  # a video check averages this many frames from across the clip
 
 
@@ -59,3 +61,9 @@ FLIP_POOL = 12  # the repair only flips among this many weakest bits
 CODEC_GRIDS = (16, 8, 4)  # WEBP macroblocks, JPEG blocks, WEBP transforms (file pixels)
 MAX_ASPECT = 3  # the search looks at most at a long : short = 3 : 1 centre of the picture
 SEARCH_TRIES = 2  # refined period hypotheses read per picture
+
+# Video (SPEC.md, section 8). Short sides a video is commonly exported at or scaled to: a clip
+# check also screens the periods a signed export would have after a rescale from one of them.
+VIDEO_SHORT_SIDES = (240, 360, 480, 540, 576, 720, 768, 1080, 1440, 2160)
+VIDEO_CELLS = range(3, 20, 2)  # cell sizes (px) a cropped, not rescaled, signed clip can have
+NATIVE_UP_TO = 1.5  # a check averages at the clip's own size up to this times detect_side's top

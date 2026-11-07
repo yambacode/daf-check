@@ -136,8 +136,62 @@
         "errors": []
       }
     },
-    "video_signed.mp4": {
-      "how": "36 frames (640 x 360, 12 fps) of a slow pan + Signer.video_frame, libx264 crf 14",
+    "video_v2_signed.mp4": {
+      "how": "24 frames (832 x 480, 12 fps) of a pan over natural(seed=5, grain=6), 24 px per frame, + Signer.video_frame (v2 tile, video_cells), libx264 crf 22",
+      "asset_id": "daf-check/fixture/video/v2",
+      "id_hash": 3422977360,
+      "bytes": 251945,
+      "watermark": {
+        "version": 2,
+        "ai": true,
+        "id_hash": 3422977360,
+        "confidence": 11.92
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "video_v2_crop20_crf28.mp4": {
+      "how": "video_v2_signed.mp4 with ffmpeg -vf crop=trunc(iw*0.8/2)*2:trunc(ih*0.8/2)*2:iw-trunc(iw*0.8/2)*2:ih-trunc(ih*0.8/2)*2 (20 % of width and height removed, bottom-right kept), libx264 crf 28",
+      "asset_id": "daf-check/fixture/video/v2",
+      "id_hash": 3422977360,
+      "bytes": 36427,
+      "watermark": {
+        "version": 2,
+        "ai": true,
+        "id_hash": 3422977360,
+        "confidence": 3.51
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "video_v1_signed.mp4": {
+      "how": "36 frames (640 x 360, 12 fps) of a slow pan + the v1-grid Signer.video_frame, libx264 crf 14 (made by daf-check 0.1.0's make_fixtures.py with DAF's pre-v2 video code; kept as is, since DAF no longer writes v1 video)",
       "asset_id": "daf-check/fixture/video",
       "id_hash": 2059815758,
       "bytes": 264174,
@@ -145,7 +199,7 @@
         "version": 1,
         "ai": true,
         "id_hash": 2059815758,
-        "confidence": 22.66
+        "confidence": 22.6
       },
       "c2pa": {
         "present": false,

@@ -1,4 +1,4 @@
-"""Detection of the Dream Art Fields pixel signature (SPEC.md, sections 3 to 7).
+"""Detection of the Dream Art Fields pixel signature (SPEC.md, sections 3 to 8).
 
 Detection only: this package has no code that writes the signature. The algorithm and its
 numbers follow Dream Art Fields' own detector exactly (same keys, same random tables, same float
@@ -40,6 +40,8 @@ from .params import (
     SCREEN_MIN_Z,
     SEARCH_TRIES,
     VERSION,
+    VIDEO_CELLS,
+    VIDEO_SHORT_SIDES,
     LegacyParams,
     Params,
 )
@@ -123,20 +125,25 @@ def _whiten(y: np.ndarray, r: int) -> np.ndarray:
 
 
 def _luma(im: Image.Image) -> Image.Image:
-    """8-bit luminance (ITU-R 601-2, as Pillow's RGB -> L conversion)."""
-    return im.convert("RGB").convert("L")
+    """8-bit luminance (ITU-R 601-2, as Pillow's RGB -> L conversion). An "F" image is taken as
+    luminance already (the mean of video frames), so its fractions are not rounded away."""
+    return im if im.mode == "F" else im.convert("RGB").convert("L")
+
+
+def _luma_f(im: Image.Image) -> Image.Image:
+    """Luminance as a float ("F") image."""
+    return im if im.mode == "F" else _luma(im).convert("F")
 
 
 def grid_luma(im: Image.Image, grid: int) -> np.ndarray:
     """Luminance box-resampled onto a `grid` x `grid` field, as float32."""
-    y = _luma(im).convert("F")
-    return np.asarray(y.resize((grid, grid), Image.Resampling.BOX), np.float32)
+    return np.asarray(_luma_f(im).resize((grid, grid), Image.Resampling.BOX), np.float32)
 
 
-# ------------------------------------------------------------------ version 1 and video
+# ------------------------------------------------------------------ version 1 (and old video)
 class LegacyDetector:
-    """Version 1: a `grid` x `grid` field stretched over the whole picture. Video uses the same
-    grid and key, averaged over frames."""
+    """Version 1: a `grid` x `grid` field stretched over the whole picture. Video exported before
+    v2 uses the same grid and key, averaged over frames."""
 
     def __init__(self, p: LegacyParams = PARAMS.legacy):
         self.p = p
@@ -272,16 +279,22 @@ class TiledDetector:
         self.pilot = np.where(self.role == PILOT, self.sign, 0.0).astype(np.float32)
         self._pilot_fft: dict[int, np.ndarray] = {}
 
-    def cell_px(self, size: tuple[int, int]) -> int:
-        """Cell size in pixels: the smallest odd number >= short side / cells, at least 3."""
-        return max(3, 2 * math.ceil((min(size) / self.p.cells - 1) / 2) + 1)
+    def cell_px(self, size: tuple[int, int], cells: int | None = None) -> int:
+        """Cell size in pixels: the smallest odd number >= short side / cells, at least 3.
+        `cells`: a video frame's grid (`video_cells`) instead of a picture's."""
+        return max(3, 2 * math.ceil((min(size) / (cells or self.p.cells) - 1) / 2) + 1)
 
-    def detect_exact(self, im: Image.Image) -> Detection | None:
+    def period_px(self, size: tuple[int, int], cells: int | None = None) -> int:
+        """Tile period in pixels: `tile` cells."""
+        return self.p.tile * self.cell_px(size, cells)
+
+    def detect_exact(self, im: Image.Image, cells: int | None = None) -> Detection | None:
         """Reads the grid the signer would have used for this exact size, from the top-left
-        corner (no search): finds pictures that were not cropped or resized since signing."""
+        corner (no search): finds pictures that were not cropped or resized since signing.
+        `cells`: the grid of a video frame (`video_cells`) instead of a picture's."""
         if min(im.size) < MIN_DETECT_SIDE:
             return None
-        c, t = self.cell_px(im.size), self.p.tile
+        c, t = self.cell_px(im.size, cells), self.p.tile
         hp = _whiten(np.asarray(_luma(im).reduce(c), np.float32), 1)
         gh, gw = hp.shape
         ty, tx = (np.arange(gh) % t)[:, None], (np.arange(gw) % t)[None, :]
@@ -292,17 +305,32 @@ class TiledDetector:
         z = corr / np.sqrt(np.bincount(role[data], v * v, BITS) + 1e-12)
         return decode(corr, z, VERSION, self.p.min_confidence, self.p.repair_bits)
 
-    def search(self, im: Image.Image, tries: int = SEARCH_TRIES) -> Detection | None:
-        """The full search for crops and resizes, over the `tries` strongest period hypotheses."""
-        for f in self._folds(im, tries):
+    def detect_period(self, im: Image.Image, py: float, px: float) -> Detection | None:
+        """Reads at a known tile period (`py`, `px` pixels of `im`) and any offset, no period
+        search: the mean of a clip's frames taken at a smaller size than the clip itself."""
+        if min(im.size) < MIN_DETECT_SIDE:
+            return None
+        y, s = self._working_luma(im)
+        q = int(min(max(min(py, px) * s / self.p.tile + 0.5, 2), MAX_BINS_PER_CELL))
+        f = self._fold(y, py * s, px * s, q)
+        return decode(f.corr, f.z, VERSION, self.p.min_confidence, self.p.repair_bits)
+
+    def search(
+        self, im: Image.Image, tries: int = SEARCH_TRIES, hints: tuple[float, ...] = ()
+    ) -> Detection | None:
+        """The full search for crops and resizes, over the `tries` strongest period hypotheses.
+        `hints` are extra square periods (pixels of `im`) to screen with the ones the
+        autocorrelation finds; a hint whose pilot was too faint for the half-size screen is
+        then read at full size."""
+        for f in self._folds(im, tries, hints):
             found = decode(f.corr, f.z, VERSION, self.p.min_confidence, self.p.repair_bits)
             if found is not None:
                 return found
-        return None
+        return next(filter(None, (self.detect_period(im, p, p) for p in hints)), None)
 
-    def detect(self, im: Image.Image) -> Detection | None:
+    def detect(self, im: Image.Image, hints: tuple[float, ...] = ()) -> Detection | None:
         """The exact grid first, then the full search."""
-        return self.detect_exact(im) or self.search(im)
+        return self.detect_exact(im) or self.search(im, hints=hints)
 
     # -------------------------------------------------------------- search internals
     def _working_luma(self, im: Image.Image) -> tuple[np.ndarray, float]:
@@ -316,7 +344,7 @@ class TiledDetector:
             w, h = im.size
         lo, hi = self.p.detect_side
         s = min(max(min(w, h), lo), hi) / min(w, h)
-        y = _luma(im).convert("F")
+        y = _luma_f(im)
         if s != 1:
             size = (max(1, round(w * s)), max(1, round(h * s)))
             y = y.resize(size, Image.Resampling.BOX if s < 1 else Image.Resampling.BICUBIC)
@@ -438,9 +466,10 @@ class TiledDetector:
             best = g
         return best
 
-    def _folds(self, im: Image.Image, tries: int) -> Iterator[_Fold]:
+    def _folds(self, im: Image.Image, tries: int, hints: tuple[float, ...] = ()) -> Iterator[_Fold]:
         """Refined hypotheses, strongest pilot first; only those whose screened pilot stands out
-        of the noise (`SCREEN_MIN_Z`) are refined."""
+        of the noise (`SCREEN_MIN_Z`) are refined. `hints`: extra square periods (pixels of
+        `im`), screened when they fit the working copy."""
         if min(im.size) < MIN_DETECT_SIDE:
             return
         y, s = self._working_luma(im)
@@ -451,7 +480,10 @@ class TiledDetector:
         cy, cx = self._periods(ac[: h // 2 + 1, 0], s), self._periods(ac[0, : w // 2 + 1], s)
         # Square cells (any uniform resize): one period for both axes, from every list. A
         # stretched picture: the best of each axis.
-        pairs = [(p, p) for p in _distinct(self._periods_2d(ac) + cy + cx)]
+        periods = self._periods_2d(ac) + cy + cx
+        pmin, pmax = 2.0 * self.p.tile, max(h, w) / 1.5
+        periods += [p * s for p in hints if pmin <= p * s <= pmax]
+        pairs = [(p, p) for p in _distinct(periods)]
         if cy and cx and abs(cy[0] / cx[0] - 1) > 0.01:
             pairs.append((cy[0], cx[0]))
         half = _half(y)  # screen on a half-size copy (cells are still >= 1.5 px there)
@@ -476,8 +508,36 @@ class Detector:
         return self.v2.detect_exact(im) or self.v1.detect(im) or self.v2.search(im)
 
     def detect_frames(self, frames: np.ndarray) -> Detection | None:
-        """Video: (n, grid, grid) luminance of frames from across the clip, averaged."""
+        """Version 1 video (clips exported before v2): (n, grid, grid) luminance of frames from
+        across the clip, averaged."""
         return self.v1.detect_frames(frames)
+
+    def detect_mean(self, mean: np.ndarray, size: tuple[int, int]) -> Detection | None:
+        """Video: the signature in `mean`, the average luminance (h x w floats) of frames from
+        across a clip whose frames are `size` (w, h); `mean` may be a shrunk copy. Version 2 at
+        the grid the export used (exact, or the known period at any offset), then the version 1
+        grid (clips exported before v2), then the full v2 search (a cropped or resized clip)."""
+        im = Image.fromarray(np.ascontiguousarray(mean, np.float32))  # mode "F"
+        v2, cells = self.v2, self.p.video_cells
+        if im.size == size:
+            found = v2.detect_exact(im, cells)
+        else:
+            p = v2.period_px(size, cells)
+            found = v2.detect_period(im, p * im.height / size[1], p * im.width / size[0])
+        if found is None and min(im.size) >= MIN_DETECT_SIDE:
+            found = self.v1.detect_grid(grid_luma(im, self.p.legacy.grid))
+        return found or v2.detect(im, hints=self.video_periods(size, im.width / size[0]))
+
+    def video_periods(self, size: tuple[int, int], k: float) -> tuple[float, ...]:
+        """Tile periods a signed export can have in a clip of `size`, times `k`: cropped (the
+        period is the export's own, `tile` x an odd cell) or rescaled from a common short side.
+        The autocorrelation misses them in a mean frame full of still picture; the pilot does
+        not."""
+        t, short = self.p.tile, min(size)
+        crop = [t * c * k for c in VIDEO_CELLS]
+        cells = self.p.video_cells
+        scaled = [self.v2.period_px((s, s), cells) * short / s * k for s in VIDEO_SHORT_SIDES]
+        return tuple(_distinct(crop + scaled))
 
 
 @lru_cache
