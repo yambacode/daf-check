@@ -1,0 +1,167 @@
+{
+  "made_with": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "pillow": "13.0.0",
+    "ffmpeg": true
+  },
+  "files": {
+    "v2_signed.png": {
+      "how": "Signer.embed(natural(640, 480, seed=1)) saved as PNG",
+      "asset_id": "daf-check/fixture/v2",
+      "id_hash": 3580875541,
+      "bytes": 265153,
+      "watermark": {
+        "version": 2,
+        "ai": true,
+        "id_hash": 3580875541,
+        "confidence": 16.58
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "v2_crop20_q70.jpg": {
+      "how": "v2_signed.png cropped by 20 % of width and height (bottom-right kept), JPEG q70",
+      "asset_id": "daf-check/fixture/v2",
+      "id_hash": 3580875541,
+      "bytes": 13164,
+      "watermark": {
+        "version": 2,
+        "ai": true,
+        "id_hash": 3580875541,
+        "confidence": 8.63
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "v1_signed.png": {
+      "how": "LegacySignature.embed(natural(384, 288, seed=2)) saved as PNG",
+      "asset_id": "daf-check/fixture/v1",
+      "id_hash": 2313776327,
+      "bytes": 120370,
+      "watermark": {
+        "version": 1,
+        "ai": true,
+        "id_hash": 2313776327,
+        "confidence": 26.15
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "unsigned.png": {
+      "how": "natural(384, 288, seed=3), never signed",
+      "asset_id": null,
+      "id_hash": null,
+      "bytes": 81665,
+      "watermark": null,
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    },
+    "c2pa_signed.png": {
+      "how": "Signer.embed(natural(384, 288, seed=4)) as PNG, then Provenance.sign_bytes with a throwaway local certificate",
+      "asset_id": "daf-check/fixture/c2pa",
+      "id_hash": 239274644,
+      "bytes": 100415,
+      "watermark": {
+        "version": 2,
+        "ai": true,
+        "id_hash": 239274644,
+        "confidence": 9.93
+      },
+      "c2pa": {
+        "present": true,
+        "state": "Valid",
+        "intact": true,
+        "trusted": false,
+        "ai_generated": true,
+        "source_type": "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
+        "generator": "Dream Art Fields 0.1.0",
+        "issuer": "YambaCode AB (test fixture)",
+        "signed_at": "2026-11-07T18:57:07+00:00",
+        "time_stamped": false,
+        "system": "Dream Art Fields",
+        "provider": "YambaCode AB",
+        "errors": []
+      }
+    },
+    "video_signed.mp4": {
+      "how": "36 frames (640 x 360, 12 fps) of a slow pan + Signer.video_frame, libx264 crf 14",
+      "asset_id": "daf-check/fixture/video",
+      "id_hash": 2059815758,
+      "bytes": 264174,
+      "watermark": {
+        "version": 1,
+        "ai": true,
+        "id_hash": 2059815758,
+        "confidence": 22.66
+      },
+      "c2pa": {
+        "present": false,
+        "state": "",
+        "intact": false,
+        "trusted": false,
+        "ai_generated": false,
+        "source_type": "",
+        "generator": "",
+        "issuer": "",
+        "signed_at": null,
+        "time_stamped": false,
+        "system": "",
+        "provider": "",
+        "errors": []
+      }
+    }
+  }
+}
