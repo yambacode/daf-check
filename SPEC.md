@@ -64,6 +64,7 @@ The values of the `invisible:` section of DAF's `config/branding.yaml`
 | `video_strength` | 2.4 | embedding: video luminance levels |
 | `video_mask` | (0.6, 1.0) | embedding: video texture-masking range |
 | `video_frames` | 24 | detection: frames a video check averages |
+| `video_flatten` | 16 | detection: gain of the flattened mean frame (section 8 step 6) |
 
 Fixed constants: pictures with a short side under 64 px are not searched; `FLIP_POOL` = 12,
 `CANDIDATES` = 3, `SCREEN_BINS` = 2, `SCREEN_MIN_Z` = 4.5, `MAX_BINS_PER_CELL` = 6,
@@ -210,7 +211,9 @@ with no flips.
 6. **Refine** each: `q = clamp(int(min(py, px) / 31 + 0.5), 2, 6)`; fold at full size; then up to
    two rounds: fold the left and right halves (and top and bottom), measure the pilot's drift
    `d` between them in periods (sub-bin peak by a parabola fit, wrapped to `[-0.5, 0.5)`), set
-   `p' = 1 / (1/p - d / (half size))` and keep the new fold only if its `pilot_z` is higher.
+   `p' = 1 / (1/p - d / (half size))` and keep the new fold only if its `pilot_z` is higher. If
+   `1/p - d / (half size)` is 0 or less in either axis (a period longer than the side, so the
+   halves say nothing), stop refining and keep the fold so far.
 7. **Decode** the refined fold as version 2 with up to 3 flips; the first success wins.
 
 ## 7. Decoding and false positives
@@ -274,15 +277,21 @@ version 1 field (section 3, legacy key) in every frame instead, and are still re
    frame). In a mean frame full of still picture the autocorrelation can miss the period; the
    pilot does not. If no fold decodes, read every hint at full size as in step 3 (period
    `(p, p)`), in order; the first success wins.
+6. **Version 2 search on the flattened mean.** If step 5 found nothing, repeat step 5 on
+   `F = (M - B1(M)) / (B2(|M - B1(M)|) + 1) * video_flatten + 128`, where `Bk` is the mean over a
+   `(2k+1) x (2k+1)` window with edges repeated and `video_flatten` = 16. A slow pan leaves a
+   still picture whose edges swamp the tile in `M`; in `F` they no longer outweigh it. Fine grain
+   or fast motion has already averaged out of `M`, and there flattening only adds noise, so
+   neither read finds every clip the other does. Steps 3 and 4 always read `M`.
 
 A frame grab (one picture of a v2 video) can be checked as a picture: DAF's own picture check also
 tries 6.1 with `c_v` right after 6.1; this package leaves picture detection as in section 6, so a
 frame grab is found by the search (6.3) instead.
 
 **False positives.** A video check makes at most one v2 read in step 3, one v1 read in step 4, and
-in step 5 the exact grid, 2 search folds and one read per hint (at most 9 + 10), each v2 read at
-most 299 tries:
-about `(23 * 299 + 1) * 2^-28 ≈ 2.6e-5` per clip from the check bits alone, before the
+in steps 5 and 6 each the exact grid, 2 search folds and one read per hint (at most 9 + 10),
+each v2 read at most 299 tries:
+about `(45 * 299 + 1) * 2^-28 ≈ 5.0e-5` per clip from the check bits alone, before the
 confidence gate.
 
 ## 9. C2PA manifest

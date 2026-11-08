@@ -460,7 +460,10 @@ class TiledDetector:
             bottom = self._fold(y[h // 2 :], py, px, q, h // 2)
             dx = ((right.ox - left.ox) / left.nx + 0.5) % 1.0 - 0.5  # in periods
             dy = ((bottom.oy - top.oy) / top.ny + 0.5) % 1.0 - 0.5
-            g = self._fold(y, 1 / (1 / py - dy / (h / 2)), 1 / (1 / px - dx / (w / 2)), q)
+            fy, fx = 1 / py - dy / (h / 2), 1 / px - dx / (w / 2)  # sharpened frequencies
+            if fy <= 0 or fx <= 0:  # a period longer than the side: the halves say nothing
+                break
+            g = self._fold(y, 1 / fy, 1 / fx, q)
             if g.pilot_z <= best.pilot_z:
                 break
             best = g
@@ -516,7 +519,10 @@ class Detector:
         """Video: the signature in `mean`, the average luminance (h x w floats) of frames from
         across a clip whose frames are `size` (w, h); `mean` may be a shrunk copy. Version 2 at
         the grid the export used (exact, or the known period at any offset), then the version 1
-        grid (clips exported before v2), then the full v2 search (a cropped or resized clip)."""
+        grid (clips exported before v2), then the full v2 search (a cropped or resized clip): on
+        the mean as it is, then on the mean flattened (`flattened`). Neither finds every clip the
+        other does: a slow pan leaves a still picture that swamps the raw mean, while fine grain
+        or fast motion has already averaged out of it and flattening only adds noise."""
         im = Image.fromarray(np.ascontiguousarray(mean, np.float32))  # mode "F"
         v2, cells = self.v2, self.p.video_cells
         if im.size == size:
@@ -526,7 +532,19 @@ class Detector:
             found = v2.detect_period(im, p * im.height / size[1], p * im.width / size[0])
         if found is None and min(im.size) >= MIN_DETECT_SIDE:
             found = self.v1.detect_grid(grid_luma(im, self.p.legacy.grid))
-        return found or v2.detect(im, hints=self.video_periods(size, im.width / size[0]))
+        if found is not None:
+            return found
+        hints = self.video_periods(size, im.width / size[0])
+        return v2.detect(im, hints=hints) or v2.detect(self.flattened(mean), hints=hints)
+
+    def flattened(self, mean: np.ndarray) -> Image.Image:
+        """The mean frame for the second v2 search: high-passed at pixel scale (minus its 3 x 3
+        mean), divided by the local activity, times `video_flatten`, around 128. A mean frame
+        also holds the clip's still or slow-moving picture; flattened, its edges and textures no
+        longer outweigh the tile's 1-2 levels. Only the v2 search reads it: the exact grid and
+        v1 read the raw mean, and pictures never come here."""
+        y = _whiten(np.asarray(mean, np.float32), 1) * self.p.video_flatten + 128
+        return Image.fromarray(y.astype(np.float32), "F")
 
     def video_periods(self, size: tuple[int, int], k: float) -> tuple[float, ...]:
         """Tile periods a signed export can have in a clip of `size`, times `k`: cropped (the
