@@ -23,7 +23,13 @@ AI_SOURCE_TYPES = (
     "http://cv.iptc.org/newscodes/digitalsourcetype/compositeSynthetic",
 )
 GENERATOR_LABEL = "com.dreamartfields.generator"
-WATERMARK_ALG = "com.dreamartfields.signature"
+# Soft-binding names (SPEC.md section 9): one per watermark scheme, the suffix the payload's
+# version (2: picture and video tile, 3: audio). Manifests from DAF before 2026-11-08 carry the
+# unversioned name for every scheme.
+WATERMARK_ALG = "com.dreamartfields.signature.2"
+AUDIO_WATERMARK_ALG = "com.dreamartfields.signature.3"
+WATERMARK_ALG_LEGACY = "com.dreamartfields.signature"
+WATERMARK_ALGS = frozenset({WATERMARK_ALG, AUDIO_WATERMARK_ALG, WATERMARK_ALG_LEGACY})
 # A JUMBF description box ("jumd") with the C2PA manifest-store UUID and label "c2pa".
 C2PA_STORE = b"jumd" + bytes.fromhex("6332706100110010800000aa00389b71")
 # Never reach out to the network while reading (remote manifests, certificate status).
@@ -109,7 +115,7 @@ def _summarise(report: dict[str, Any], state: str) -> ManifestInfo:
             info.system = str(data.get("system", ""))
             info.provider = str(data.get("provider", ""))
             info.models = [str(x) for x in data.get("models") or []][:16]
-        elif lbl.startswith("c2pa.soft-binding") and data.get("alg") == WATERMARK_ALG:
+        elif lbl.startswith("c2pa.soft-binding") and data.get("alg") in WATERMARK_ALGS:
             for block in data.get("blocks") or []:
                 try:
                     raw = base64.b64decode(str(block.get("value", "")), validate=True)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daf-check"
-version = "0.2.1"
+version = "0.2.2"
 description = "Free, open-source checker for Dream Art Fields' AI marks (invisible pixel signature and C2PA manifest)"
 readme = "README.md"
 license = "Apache-2.0"
