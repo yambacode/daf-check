@@ -10,7 +10,7 @@ See SPEC.md for the public specification of both marks.
 
 from __future__ import annotations
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from .check import Result, check, sniff_mime  # noqa: E402
 from .manifest import ManifestInfo  # noqa: E402

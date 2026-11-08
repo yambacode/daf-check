@@ -1,6 +1,6 @@
 # Dream Art Fields AI marks: public specification
 
-Version 1.0 (daf-check 0.1.0), November 2026. Published by YambaCode AB, Sweden.
+Version 1.1 (daf-check 0.2.2), November 2026. Published by YambaCode AB, Sweden.
 
 Dream Art Fields (DAF) is a local AI image, video and audio app. It marks what it generates in two
 machine-readable layers, as the EU AI Act (Art. 50(2)) and the EU Code of Practice on marking
@@ -303,13 +303,17 @@ formats C2PA can carry (PNG, JPEG, WEBP, MP4, MOV, WAV, ...). Its active manifes
 * `c2pa.actions.v2` with a `c2pa.created` action: `digitalSourceType`
   `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`, `softwareAgent`
   (name, version), `when` (ISO 8601) and a description. A `c2pa.watermarked` action is added when
-  the pixels carry the signature.
+  the pixels (or, for audio, the sound) carry the signature.
 * `com.dreamartfields.generator`: `system`, `version`, `provider` (YambaCode AB), `provider_url`,
   `ai_generated: true`, `generated_at` and `models` (up to 16 model ids). Never the prompt, the
   user's name or anything else personal.
-* `c2pa.soft-binding` (when the pixels are signed): `{"alg": "com.dreamartfields.signature",
-  "blocks": [{"scope": {}, "value": base64(4-byte big-endian asset hash)}]}`. The value equals
-  the asset hash in the pixel payload, which ties the two marks together.
+* `c2pa.soft-binding` (when the file carries a watermark): `{"alg": ALG, "blocks": [{"scope": {},
+  "value": base64(4-byte big-endian asset hash)}]}`. The value equals the asset hash in the
+  watermark's payload, which ties the two marks together. `ALG` names the scheme, its suffix the
+  payload's version: `com.dreamartfields.signature.2` for the version 2 tile in pictures and
+  video, `com.dreamartfields.signature.3` for the audio watermark. Manifests written by DAF
+  before 2026-11-08 carry `com.dreamartfields.signature` for every scheme. A reader accepts all
+  three; any other `alg` is not ours and is ignored.
 
 **Signing.** ES256 by default, with the install's own certificate (a local CA and a
 document-signing certificate made on first use) unless the owner configured one from a public CA.

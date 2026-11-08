@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2 (2026-11-08)
+
+Reads the versioned C2PA soft-binding names Dream Art Fields writes from now on.
+
+* C2PA: the soft-binding assertion is read when its `alg` is `com.dreamartfields.signature.2`
+  (pictures and video, v2 tile), `com.dreamartfields.signature.3` (audio) or, for manifests from
+  DAF before 2026-11-08, `com.dreamartfields.signature`. 0.2.1 and older read only the last, so
+  they report no binding for new files. Constants: `WATERMARK_ALG` (now the `.2` name),
+  `AUDIO_WATERMARK_ALG`, `WATERMARK_ALG_LEGACY`, `WATERMARK_ALGS`.
+* SPEC.md 1.1: section 9 names the three values; the header now names the package version.
+* Watermark detection is unchanged; fixtures and `tests/expected.json` are unchanged.
+
 ## 0.2.1 (2026-11-08)
 
 Follows Dream Art Fields' video reader (DAF PRs #68 and #76); results still match DAF exactly.
