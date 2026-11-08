@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.1 (2026-11-08)
+
+Follows Dream Art Fields' video reader (DAF PRs #68 and #76); results still match DAF exactly.
+
+* Video: when the export's grid and v1 find nothing, the v2 search now reads the mean frame as it
+  is and then, if that fails, the mean **flattened** (high-passed at pixel scale, divided by the
+  local activity, times the new `video_flatten` = 16; SPEC.md section 8 step 6). A slow pan leaves
+  a still picture that swamps the raw mean; flattened, a 20 % crop of a slow 720p pan at CRF 28
+  reads for about 97 in 100 asset ids instead of 55 (DAF's bench). Clips the raw mean already
+  read, such as the grainy crop fixture, read as before.
+* Search: the period refine step stops when a sharpened period would come out longer than the
+  side (zero or negative frequency) instead of raising. Before, such an input (an unmarked
+  896 x 504 crop in DAF's false-positive runs) made a check report "no mark" for an error.
+* The false-positive bound for one video check is now about 5.0e-5 (two v2 searches; SPEC.md
+  section 8).
+* Parameters: `video_flatten` (SPEC.md section 2). API: `Detector.flattened(mean)`.
+* Fixtures and `tests/expected.json` are unchanged; a new test covers the refine step.
+
 ## 0.2.0 (2026-11-08)
 
 Reads the version 2 video signature, as Dream Art Fields main does since its video change.

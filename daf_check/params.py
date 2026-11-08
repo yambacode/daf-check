@@ -41,6 +41,7 @@ class Params:
     video_strength: float = 2.4  # embedding (video): luminance levels
     video_mask: tuple[float, float] = (0.6, 1.0)  # embedding (video): texture-masking range
     video_frames: int = 24  # a video check averages this many frames from across the clip
+    video_flatten: float = 16  # gain of the flattened mean frame the v2 video search reads
 
 
 PARAMS = Params()
